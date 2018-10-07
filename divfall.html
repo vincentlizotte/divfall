@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Div Fall</title>
+
+    <style>
+        body {background-color: powderblue; width:100%; height:100%; overflow: hidden}
+        h1   {color: blue;}
+        p    {color: red;}
+        .wall { position: relative; background-color: brown; }
+        .ball { position: relative; background-color: yellow; width: 10px;}
+        #container { overflow: hidden; width:100%; height:100%;  }
+        html { height: 100%; }
+    </style>
+
+    <script
+            src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+            integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
+            crossorigin="anonymous">
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded",function(){
+            init();
+            update();
+        });
+
+        class Wall {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.width = 0.3;
+                this.height = 0.1;
+                this.angle = 0;
+                this.renderDiv = null;
+            }
+        }
+
+        class Camera {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+            }
+        }
+
+        class Ball {
+            constructor() {
+                this.x = 0.5;
+                this.y = 0;
+                this.speed = 0;
+                this.renderDiv = $('<div class="ball">o</div>');
+            }
+
+            update() {
+                this.speed += 0.3;
+                this.speed *= 0.99;
+                this.y += this.speed;
+                console.log(this.speed);
+            }
+        }
+
+        let walls = [];
+        let camera = new Camera();
+        let ball = new Ball();
+
+        function init() {
+            $('#container').append(ball.renderDiv);
+        }
+
+        function update() {
+            requestAnimationFrame(update);
+            ball.update();
+
+            camera.y = ball.y - 100;
+            let w = new Wall();
+            let wallYs = walls.map(w => w.y);
+            let furthestWall = wallYs.length > 0 ? Math.max(...wallYs) : 0;
+            if (furthestWall - camera.y < 2000) {
+                let newWall = new Wall();
+                newWall.x = Math.random() * 0.3;
+                newWall.y = furthestWall + 300;
+                newWall.width = Math.random() * 0.3 + 0.1;
+                newWall.renderDiv = $('<div class="wall">This is a wall</div>');
+
+                walls.push(newWall);
+                $('#container').append(newWall.renderDiv);
+                console.log("Spawning wall");
+            }
+
+            refreshScene();
+
+        }
+
+        function refreshScene() {
+            ball.renderDiv.css('left', `${(ball.x - camera.x) * 1000}px`);
+            ball.renderDiv.css('top', `${ball.y - camera.y}px`);
+
+            for (let i = 0; i < walls.length; i++)
+            {
+                let w = walls[i];
+                if ((w.y - camera.y) < -1000) {
+                    $(w.renderDiv).remove();
+                    w.renderDiv = null;
+                    walls.splice(i, 1);
+                    i--;
+                    console.log("Killing wall");
+                }
+                if (w.renderDiv !== null) {
+                    w.renderDiv.css('left', `${(w.x - camera.x) * 1000}px`);
+                    w.renderDiv.css('top', `${w.y - camera.y}px`);
+                    w.renderDiv.css('width', `${w.width * 1000}px`)
+                }
+            }
+        }
+
+
+
+
+
+    </script>
+</head>
+<body>
+    <div id="container">
+
+    </div>
+</body>
+</html>
