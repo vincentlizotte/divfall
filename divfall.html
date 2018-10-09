@@ -8,10 +8,13 @@
         body {background-color: powderblue; width:100%; height:100%; overflow: hidden}
         h1   {color: blue;}
         p    {color: red;}
-        .wall { position: relative; background-color: brown; }
-        .ball { position: relative; background-color: yellow; width: 10px;}
-        #container { overflow: hidden; width:100%; height:100%;  }
+        .wall { position: absolute; background-color: green;}
+        .ball { position: absolute; background-color: yellow; width: 10px;}
+        #container { display: inline-block; overflow: hidden; width:600px; height:600px; position: relative; background-color: beige;}
+        #controls { display: inline-block;}
         html { height: 100%; }
+		
+		
     </style>
 
     <script
@@ -26,14 +29,38 @@
             update();
         });
 
-        class Wall {
-            constructor() {
-                this.x = 0;
-                this.y = 0;
-                this.width = 0.3;
-                this.height = 0.1;
-                this.angle = 0;
+
+		
+		class Rect {
+			constructor(left, top, right, bottom) {
+				this.left = left;
+				this.top = top;
+				this.right = right;
+				this.bottom = bottom;
+			}
+		}
+
+		class Point {
+		    constructor(x, y) {
+		        this.x = x;
+		        this.y = y;
+            }
+        }
+
+        class GameObject {
+            constructor(x, y, width, height) {
+                this.position = new Point(x, y);
+                this.size = new Point(width, height);
                 this.renderDiv = null;
+                this.angle = 0;
+            }
+        }
+
+        class Wall extends GameObject {
+            constructor(x, y, width, height) {
+                super(x, y,width, height);
+                this.bounceCoefficient = 0.65;
+                this.bounceFlatReduction = 0.00001;
             }
         }
 
@@ -44,48 +71,64 @@
             }
         }
 
-        class Ball {
+        class Ball extends GameObject {
             constructor() {
-                this.x = 0.5;
-                this.y = 0;
+                super(0.2, 0, 0.02, 0.02);
                 this.speed = 0;
                 this.renderDiv = $('<div class="ball">o</div>');
+                this.previousPosition = new Point(this.position.x, this.position.y);
             }
 
             update() {
-                this.speed += 0.3;
-                this.speed *= 0.99;
-                this.y += this.speed;
-                console.log(this.speed);
+                //this.speed += 0.3;
+                this.previousPosition.x = this.position.x;
+                this.previousPosition.y = this.position.y;
+				this.speed += 0.0001;
+                this.speed *= 0.999;
+                this.position.y += this.speed;
+                //console.log(this.speed);
+				handleCollision();
             }
         }
 
         let walls = [];
         let camera = new Camera();
         let ball = new Ball();
+		let paused = false;
+		let enableCollision = true;
 
         function init() {
+            $('#togglePause').click(togglePause);
+            $('#toggleCollision').click(toggleCollision);
             $('#container').append(ball.renderDiv);
         }
 
+        function togglePause() {
+            paused = !paused;
+        }
+
+        function toggleCollision() {
+            enableCollision = !enableCollision;
+        }
+
         function update() {
-            requestAnimationFrame(update);
+            let a = requestAnimationFrame(update);
+
+			if (paused) {
+				return;
+			}
+
             ball.update();
 
-            camera.y = ball.y - 100;
-            let w = new Wall();
-            let wallYs = walls.map(w => w.y);
+            camera.y = ball.position.y - 0.1;
+            let wallYs = walls.map(w => w.position.y);
             let furthestWall = wallYs.length > 0 ? Math.max(...wallYs) : 0;
-            if (furthestWall - camera.y < 2000) {
-                let newWall = new Wall();
-                newWall.x = Math.random() * 0.3;
-                newWall.y = furthestWall + 300;
-                newWall.width = Math.random() * 0.3 + 0.1;
-                newWall.renderDiv = $('<div class="wall">This is a wall</div>');
-
+            if (furthestWall - camera.y < 1) {
+                let newWall = new Wall(Math.random() * 0.3, furthestWall + 0.1, Math.random() * 0.3 + 0.1, 0.03);
+                newWall.renderDiv = $('<div class="wall">This is a div - <span class="wallnumber"></span></div>');
                 walls.push(newWall);
                 $('#container').append(newWall.renderDiv);
-                console.log("Spawning wall");
+                //console.log("Spawning wall");
             }
 
             refreshScene();
@@ -93,26 +136,72 @@
         }
 
         function refreshScene() {
-            ball.renderDiv.css('left', `${(ball.x - camera.x) * 1000}px`);
-            ball.renderDiv.css('top', `${ball.y - camera.y}px`);
-
+            ball.renderDiv.css('left', `${(ball.position.x - camera.x) * 1000}px`);
+            ball.renderDiv.css('top', `${(ball.position.y - camera.y) * 1000}px`);
+			ball.renderDiv.css('width', `${ball.size.x * 1000}px`);
+			ball.renderDiv.css('height', `${ball.size.y * 1000}px`);
+			
             for (let i = 0; i < walls.length; i++)
             {
                 let w = walls[i];
-                if ((w.y - camera.y) < -1000) {
+				w.renderDiv.children('span').text(`# ${i}`);
+
+                // Don't kill the last wall, we need it to keep track of where the world was up to
+                if ((w.position.y - camera.y) < -2 && walls.length > 1) {
                     $(w.renderDiv).remove();
                     w.renderDiv = null;
                     walls.splice(i, 1);
                     i--;
-                    console.log("Killing wall");
+                    //console.log("Killing wall");
                 }
                 if (w.renderDiv !== null) {
-                    w.renderDiv.css('left', `${(w.x - camera.x) * 1000}px`);
-                    w.renderDiv.css('top', `${w.y - camera.y}px`);
-                    w.renderDiv.css('width', `${w.width * 1000}px`)
+                    w.renderDiv.css('left', `${(w.position.x - camera.x) * 1000}px`);
+                    w.renderDiv.css('top', `${(w.position.y - camera.y) * 1000}px`);
+                    w.renderDiv.css('width', `${w.size.x * 1000}px`);
+					w.renderDiv.css('height', `${w.size.y * 1000}px`);
                 }
             }
         }
+		
+		function getObjectRect(obj) {
+			return new Rect(obj.position.x, obj.position.y, obj.position.x + obj.size.x, obj.position.y + obj.size.y);
+		}
+		
+		function handleCollision() {
+            if (!enableCollision) {
+                return;
+            }
+			let ballRect = getObjectRect(ball);
+		
+			for (let wall of walls) 
+			{
+				let wallRect = getObjectRect(wall);
+				if (ballRect.left < wallRect.right && ballRect.right > wallRect.left && ballRect.top < wallRect.bottom && ballRect.bottom > wallRect.top) {
+					wall.renderDiv.css('background-color', 'red');
+
+                    // todo: proper raycast. For now its 1D collision so its trivial
+                    let pointOfImpactY = wallRect.top - ball.size.y;
+                    let ballMoveVectorY = ball.position.y - ball.previousPosition.y;
+                    let ratioOfMovementSpentBeforeImpact = (pointOfImpactY - ball.previousPosition.y) / ballMoveVectorY;
+                    ball.speed = -ball.speed * wall.bounceCoefficient;
+                    if (ball.speed > 0) {
+                        ball.speed = Math.max(ball.speed - wall.bounceFlatReduction, 0);
+                    }
+                    else if (ball.speed < 0) {
+                        ball.speed = Math.min(ball.speed + wall.bounceFlatReduction, 0);
+                    }
+                    if (Math.abs(ball.speed) < 0.001) {
+                        ball.speed = 0;
+                    }
+                    ball.position.y -= ballMoveVectorY;
+                    // ball.position.y -= ballMoveVectorY // todo use this once ceiling collision is handled
+                    console.log("Ratio of impact:" + ratioOfMovementSpentBeforeImpact);
+				}
+				else {
+					wall.renderDiv.css('background-color', 'green');
+				}
+			}
+		}
 
 
 
@@ -121,8 +210,11 @@
     </script>
 </head>
 <body>
-    <div id="container">
-
+    <div id="container"></div>
+    <div id="controls">
+        Debug controls<br>
+        <button id="togglePause">Pause / Play</button> <br>
+        <button id="toggleCollision">Toggle Collision</button>
     </div>
 </body>
 </html>
